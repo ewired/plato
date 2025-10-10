@@ -1,6 +1,7 @@
 // #region browser interactivity
 
 let windowId;
+let tabScrollMode = false;
 let selectionInProgress = {};
 let awaitingFirstSelectionTap = {};
 
@@ -38,6 +39,69 @@ async function moveTabToLast() {
   const currentTab = tabs.find((tab) => tab.active);
   if (!currentTab) return;
   await browser.tabs.move(currentTab.id, { index: -1 });
+}
+
+async function focusNextFocusableElement(direction) {
+  const { id } = await currentTab();
+  const result = await browser.tabs.executeScript(id, {
+    code: `(() => {
+      // Get all focusable elements
+      const focusableSelectors = [
+        'a[href]',
+        'button:not([disabled])',
+        'input:not([disabled])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])',
+        'details',
+        '[contenteditable="true"]',
+        'summary',
+        'iframe',
+        'embed',
+        'object'
+      ].join(', ');
+      
+      const focusableElements = Array.from(document.querySelectorAll(focusableSelectors))
+        .filter(element => {
+          // Filter out hidden elements
+          const style = window.getComputedStyle(element);
+          return style.display !== 'none' && 
+                 style.visibility !== 'hidden' && 
+                 element.offsetParent !== null;
+        });
+      
+      if (focusableElements.length === 0) return false;
+      
+      // Find currently focused element
+      const currentElement = document.activeElement;
+      let currentIndex = -1;
+      
+      if (currentElement && focusableElements.includes(currentElement)) {
+        currentIndex = focusableElements.indexOf(currentElement);
+      }
+      
+      // Calculate next index with cycling
+      let nextIndex;
+      if ('${direction}' === 'forward') {
+        nextIndex = (currentIndex + 1) % focusableElements.length;
+      } else {
+        nextIndex = currentIndex <= 0 ? focusableElements.length - 1 : currentIndex - 1;
+      }
+      
+      // Focus the next element
+      const nextElement = focusableElements[nextIndex];
+      nextElement.focus();
+      
+      // Scroll element into view if needed
+      nextElement.scrollIntoView({ 
+        behavior: 'instant', 
+        block: 'center' 
+      });
+      
+      return true;
+    })()`
+  });
+  return result[0];
 }
 
 async function currentTab() {
@@ -718,11 +782,25 @@ async function onMessage(msg) {
       // scroll half pages
       switch (button) {
         case "forward": {
-          await scroll(0.5, 0.5, 0.5, 0);
+          if (tabScrollMode) {
+            const focused = await focusNextFocusableElement('forward');
+            if (!focused) {
+              await sendNotice("no focusable elements found");
+            }
+          } else {
+            await scroll(0.5, 0.5, 0.5, 0);
+          }
           break;
         }
         case "backward": {
-          await scroll(0.5, 0.5, -0.5, 0);
+          if (tabScrollMode) {
+            const focused = await focusNextFocusableElement('backward');
+            if (!focused) {
+              await sendNotice("no focusable elements found");
+            }
+          } else {
+            await scroll(0.5, 0.5, -0.5, 0);
+          }
           break;
         }
       }
@@ -827,17 +905,19 @@ async function onMessage(msg) {
     }
     case "multiArrow": {
       const { dir } = msg.value;
-      switch (dir) {
-        case "east":
+      if (dir === "east" || dir === "west") {
+        if (dir === "east") {
           await moveTabToLast();
-          break;
-        case "west":
+        } else {
           await moveTabToFirst();
-          break;
+        }
+        const info = await currentTabInfo();
+        await sendNotice(info);
+        await sendImage(true);
+      } else if (dir === "north") {
+        tabScrollMode = !tabScrollMode;
+        await sendNotice(`tab-scroll mode ${tabScrollMode ? 'enabled' : 'disabled'}`);
       }
-      const info = await currentTabInfo();
-      await sendNotice(info);
-      await sendImage(true);
       break;
     }
     case "pinch":
