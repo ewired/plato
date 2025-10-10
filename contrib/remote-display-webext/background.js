@@ -364,27 +364,43 @@ async function clickUnderTap(pctX, pctY) {
         const dispatched = element.dispatchEvent(pointerEvent);
         return dispatched;
       }
-      for (const el of elements) {
-        const isClickable = el.onclick ||
-                           el.tagName === "A" ||
-                           el.tagName === "BUTTON" ||
-                           el.tagName === "INPUT" ||
-                           el.tagName === "SELECT" ||
-                           el.tagName === "TEXTAREA" ||
-                           el.getAttribute("role") === "button" ||
-                           window.getComputedStyle(el).cursor === "pointer";
+      // Always click the top element first
+      if (elements.length > 0) {
+        const topElement = elements[0];
+        console.log("Clicking top element:", topElement.tagName, topElement.className);
+        simulatePointerEvent(topElement, "pointerdown");
+        simulateMouseEvent(topElement, "mousedown");
+        simulatePointerEvent(topElement, "pointerup");
+        simulateMouseEvent(topElement, "mouseup");
+        simulateMouseEvent(topElement, "click");
         
-        if (isClickable) {
-          console.log("Clicking element:", el.tagName, el.className);
-          simulatePointerEvent(el, "pointerdown");
-          simulateMouseEvent(el, "mousedown");
-          simulatePointerEvent(el, "pointerup");
-          simulateMouseEvent(el, "mouseup");
-          simulateMouseEvent(el, "click");
-          return;
+        // Check if the clicked element is focusable and focus it if so
+        const focusableSelectors = [
+          'a[href]',
+          'button:not([disabled])',
+          'input:not([disabled])',
+          'select:not([disabled])',
+          'textarea:not([disabled])',
+          '[tabindex]:not([tabindex="-1"])',
+          'details',
+          '[contenteditable="true"]',
+          'summary',
+          'iframe',
+          'embed',
+          'object'
+        ].join(', ');
+        
+        if (topElement.matches(focusableSelectors)) {
+          const style = window.getComputedStyle(topElement);
+          if (style.display !== 'none' && style.visibility !== 'hidden' && topElement.offsetParent !== null) {
+            console.log("Focusing clicked element:", topElement.tagName);
+            topElement.focus();
+            topElement.scrollIntoView({ behavior: 'instant', block: 'center' });
+          }
         }
       }
-      
+
+      // Handle semantic navigation for headers (separate from click behavior)
       function findNearestHash(element, maxDepth = 4) {
         const semanticTags = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'SECTION', 'ARTICLE'];
         if (!element || maxDepth <= 0) return null;
@@ -403,15 +419,6 @@ async function clickUnderTap(pctX, pctY) {
             break;
           }
         }
-      }
-      
-      if (elements.length > 0) {
-        console.log("Fallback click on:", elements[0].tagName);
-        simulatePointerEvent(elements[0], "pointerdown");
-        simulateMouseEvent(elements[0], "mousedown");
-        simulatePointerEvent(elements[0], "pointerup");
-        simulateMouseEvent(elements[0], "mouseup");
-        simulateMouseEvent(elements[0], "click");
       }
     })()`,
   });
