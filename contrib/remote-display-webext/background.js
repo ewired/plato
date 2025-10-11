@@ -60,26 +60,26 @@ async function focusNextFocusableElement(direction) {
         'embed',
         'object'
       ].join(', ');
-      
+
       const focusableElements = Array.from(document.querySelectorAll(focusableSelectors))
         .filter(element => {
           // Filter out hidden elements
           const style = window.getComputedStyle(element);
-          return style.display !== 'none' && 
-                 style.visibility !== 'hidden' && 
+          return style.display !== 'none' &&
+                 style.visibility !== 'hidden' &&
                  element.offsetParent !== null;
         });
-      
+
       if (focusableElements.length === 0) return false;
-      
+
       // Find currently focused element
       const currentElement = document.activeElement;
       let currentIndex = -1;
-      
+
       if (currentElement && focusableElements.includes(currentElement)) {
         currentIndex = focusableElements.indexOf(currentElement);
       }
-      
+
       // Calculate next index with cycling
       let nextIndex;
       if ('${direction}' === 'forward') {
@@ -87,17 +87,17 @@ async function focusNextFocusableElement(direction) {
       } else {
         nextIndex = currentIndex <= 0 ? focusableElements.length - 1 : currentIndex - 1;
       }
-      
+
       // Focus the next element
       const nextElement = focusableElements[nextIndex];
       nextElement.focus();
-      
+
       // Scroll element into view if needed
-      nextElement.scrollIntoView({ 
-        behavior: 'instant', 
-        block: 'center' 
+      nextElement.scrollIntoView({
+        behavior: 'instant',
+        block: 'center'
       });
-      
+
       return true;
     })()`
   });
@@ -128,25 +128,25 @@ async function scroll(pctX, pctY, verticalPct, horizontalPct = 0) {
       // Combined scrollability check function
       function isScrollable(element, direction) {
         if (!element) return false;
-        
+
         const isVertical = direction === 'vertical';
-        const hasOverflow = isVertical 
+        const hasOverflow = isVertical
           ? Math.abs(element.scrollHeight - element.clientHeight) > 10
           : Math.abs(element.scrollWidth - element.clientWidth) > 10;
-          
+
         if (!hasOverflow) return false;
-        
+
         const style = window.getComputedStyle(element);
         const overflow = style.getPropertyValue(isVertical ? 'overflow-y' : 'overflow-x');
         const isScrollableStyle = ['auto', 'scroll', 'overlay'].includes(overflow);
-        
+
         const isDefaultScrollable = element.tagName === 'BODY' ||
           element.tagName === 'HTML' ||
           element.tagName === 'DIV' && hasOverflow;
-                                   
+
         return isScrollableStyle || isDefaultScrollable;
       }
-      
+
       const elements = [...document.elementsFromPoint(
         window.innerWidth * ${pctX}, window.innerHeight * ${pctY}
       )];
@@ -167,7 +167,7 @@ async function scroll(pctX, pctY, verticalPct, horizontalPct = 0) {
         );
         elements.unshift(...(iframeElements ?? []));
       }
-      
+
       // Try scrolling elements separately for each direction
       let verticalScrolled = false;
       let horizontalScrolled = false;
@@ -206,11 +206,11 @@ async function scroll(pctX, pctY, verticalPct, horizontalPct = 0) {
       if ((${verticalPct} === 0 || verticalScrolled) && (${horizontalPct} === 0 || horizontalScrolled)) {
         return horizontalScrolled;
       }
-      
+
       // Fallback to window scrolling
       const prevWindowLeft = window.scrollX || window.pageXOffset;
       window.scrollBy(
-        window.innerWidth * ${horizontalPct}, 
+        window.innerWidth * ${horizontalPct},
         window.innerHeight * ${verticalPct}
       );
       const scrollStartTime = Date.now();
@@ -340,13 +340,13 @@ async function clickUnderTap(pctX, pctY) {
           clientY: coordY,
           button: 0
         });
-        
+
         const dispatched = element.dispatchEvent(mouseEvent);
         return dispatched;
       }
       function simulatePointerEvent(element, eventName) {
         if (!element) return false;
-        
+
         // Create and dispatch the pointer event with coordinates
         const pointerEvent = new PointerEvent(eventName, {
           view: window,
@@ -360,21 +360,11 @@ async function clickUnderTap(pctX, pctY) {
           pressure: 1,
           button: 0
         });
-        
+
         const dispatched = element.dispatchEvent(pointerEvent);
         return dispatched;
       }
-      // Always click the top element first
-      if (elements.length > 0) {
-        const topElement = elements[0];
-        console.log("Clicking top element:", topElement.tagName, topElement.className);
-        simulatePointerEvent(topElement, "pointerdown");
-        simulateMouseEvent(topElement, "mousedown");
-        simulatePointerEvent(topElement, "pointerup");
-        simulateMouseEvent(topElement, "mouseup");
-        simulateMouseEvent(topElement, "click");
-        
-        // Check if the clicked element is focusable and focus it if so
+      function isFocusable(element) {
         const focusableSelectors = [
           'a[href]',
           'button:not([disabled])',
@@ -389,13 +379,54 @@ async function clickUnderTap(pctX, pctY) {
           'embed',
           'object'
         ].join(', ');
-        
-        if (topElement.matches(focusableSelectors)) {
-          const style = window.getComputedStyle(topElement);
-          if (style.display !== 'none' && style.visibility !== 'hidden' && topElement.offsetParent !== null) {
-            console.log("Focusing clicked element:", topElement.tagName);
-            topElement.focus();
-            topElement.scrollIntoView({ behavior: 'instant', block: 'center' });
+
+        return element.matches(focusableSelectors) &&
+              window.getComputedStyle(element).display !== 'none' &&
+              window.getComputedStyle(element).visibility !== 'hidden' &&
+              element.offsetParent !== null;
+     }
+     function getDistanceToElement(element, x, y) {
+       const rect = element.getBoundingClientRect();
+       const centerX = rect.left + rect.width / 2;
+       const centerY = rect.top + rect.height / 2;
+       return Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+     }
+     function findNearestFocusableElement(x, y) {
+       const allElements = document.querySelectorAll('*');
+       let nearest = null;
+       let minDistance = Infinity;
+       for (const el of allElements) {
+         if (isFocusable(el)) {
+           const dist = getDistanceToElement(el, x, y);
+           if (dist < minDistance) {
+             minDistance = dist;
+             nearest = el;
+           }
+         }
+       }
+       return nearest;
+     }
+     // Always click the top element first
+     if (elements.length > 0) {
+       const topElement = elements[0];
+       console.log("Clicking top element:", topElement.tagName, topElement.className);
+       simulatePointerEvent(topElement, "pointerdown");
+       simulateMouseEvent(topElement, "mousedown");
+       simulatePointerEvent(topElement, "pointerup");
+       simulateMouseEvent(topElement, "mouseup");
+       simulateMouseEvent(topElement, "click");
+
+        // Focus the tapped element if focusable, otherwise the nearest focusable element if in tab-scroll mode
+        if (isFocusable(topElement)) {
+          console.log("Focusing tapped element:", topElement.tagName, topElement.className);
+          topElement.focus();
+          topElement.scrollIntoView({ behavior: 'instant', block: 'center' });
+        } else if (${tabScrollMode}) {
+          const nearestFocusable = findNearestFocusableElement(coordX, coordY);
+          if (nearestFocusable) {
+            console.log("Focusing nearest element:", nearestFocusable.tagName, nearestFocusable.className);
+            nearestFocusable.focus();
+            nearestFocusable.scrollIntoView({ behavior: 'instant', block: 'center' });
           }
         }
       }
