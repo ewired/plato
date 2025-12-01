@@ -27,19 +27,19 @@ async function windowOffset(offset) {
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
 
-async function moveTabToFirst() {
+async function moveTabToIndex(targetIndex) {
   const tabs = await browser.tabs.query({ windowId });
   const currentTab = tabs.find((tab) => tab.active);
   if (!currentTab) return;
-  await browser.tabs.move(currentTab.id, { index: 0 });
+  
+  const currentTabIndex = tabs.findIndex(tab => tab.id === currentTab.id);
+  const isLastTab = currentTabIndex === tabs.length - 1;
+  await tabOffset(isLastTab ? -1 : 1);
+  
+  await browser.tabs.move(currentTab.id, { index: targetIndex });
 }
 
-async function moveTabToLast() {
-  const tabs = await browser.tabs.query({ windowId });
-  const currentTab = tabs.find((tab) => tab.active);
-  if (!currentTab) return;
-  await browser.tabs.move(currentTab.id, { index: -1 });
-}
+
 
 async function focusNextFocusableElement(direction) {
   const { id } = await currentTab();
@@ -945,9 +945,11 @@ async function onMessage(msg) {
       const { dir } = msg.value;
       if (dir === "east" || dir === "west") {
         if (dir === "east") {
-          await moveTabToLast();
+          await moveTabToIndex(-1);
+          await sendNotice(`tab shuttled to last`);
         } else {
-          await moveTabToFirst();
+          await moveTabToIndex(0);
+          await sendNotice(`tab shuttled to first`);
         }
         const info = await currentTabInfo();
         await sendNotice(info);
