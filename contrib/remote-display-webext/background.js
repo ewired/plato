@@ -441,10 +441,20 @@ async function clickUnderTap(pctX, pctY) {
         return findNearestHash(element.parentElement, maxDepth - 1);
       }
 
+      function isElementInViewport(element) {
+        const rect = element.getBoundingClientRect();
+        return (
+          rect.top >= 0 &&
+          rect.left >= 0 &&
+          rect.bottom <= window.innerHeight &&
+          rect.right <= window.innerWidth
+        );
+      }
+
       for (const el of elements) {
         if (['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(el.tagName)) {
           const targetId = findNearestHash(el);
-          if (targetId) {
+          if (targetId && isElementInViewport(el)) {
             console.log("Navigating to semantic element from header:", targetId);
             window.location.hash = targetId;
             break;
