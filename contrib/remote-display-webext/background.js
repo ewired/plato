@@ -39,6 +39,28 @@ async function moveTabToIndex(targetIndex) {
   await browser.tabs.move(currentTab.id, { index: targetIndex });
 }
 
+async function tryScrollTo(position) {
+  const { id } = await currentTab();
+  try {
+    const checkCode = position === "top" 
+      ? `window.scrollY === 0 || window.pageYOffset === 0`
+      : `window.scrollY + window.innerHeight >= document.body.scrollHeight`;
+    const scrollCode = position === "top" 
+      ? `window.scrollTo(0, 0)`
+      : `window.scrollTo(0, document.body.scrollHeight)`;
+    
+    const atPosition = (await browser.tabs.executeScript(id, { code: checkCode }))[0];
+    if (atPosition) {
+      return true; // Already at position
+    }
+    
+    await browser.tabs.executeScript(id, { code: scrollCode });
+    return false; // Scroll was performed
+  } catch (e) {
+    return true; // Assume at position if script can't execute
+  }
+}
+
 
 
 async function focusNextFocusableElement(direction) {
@@ -951,11 +973,16 @@ async function onMessage(msg) {
         }
         case "north":
         case "south": {
-          const tabs = await browser.tabs.query({ windowId });
-          const targetIndex = dir === "south" ? 0 : tabs.length - 1;
-          await browser.tabs.update(tabs[targetIndex].id, { active: true });
-          const info = await currentTabInfo();
-          await sendNotice(info);
+          const position = dir === "south" ? "top" : "bottom";
+          const wasAtPosition = await tryScrollTo(position);
+          
+          if (wasAtPosition) {
+            const tabs = await browser.tabs.query({ windowId });
+            const targetIndex = dir === "south" ? 0 : tabs.length - 1;
+            await browser.tabs.update(tabs[targetIndex].id, { active: true });
+            const info = await currentTabInfo();
+            await sendNotice(info);
+          }
           await sendImage(true);
           break;
         }
