@@ -435,9 +435,20 @@ async function clickUnderTap(pctX, pctY) {
       function findNearestHash(element, maxDepth = 4) {
         const semanticTags = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'SECTION', 'ARTICLE'];
         if (!element || maxDepth <= 0) return null;
+        
+        // Check if element has an id
         if (semanticTags.includes(element.tagName) && element.id) {
           return element.id;
         }
+        
+        // For header elements, also check for a[name] children
+        if (['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(element.tagName)) {
+          const namedAnchor = element.querySelector('a[name]');
+          if (namedAnchor && namedAnchor.getAttribute('name')) {
+            return namedAnchor.getAttribute('name');
+          }
+        }
+        
         return findNearestHash(element.parentElement, maxDepth - 1);
       }
 
