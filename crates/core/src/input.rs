@@ -59,6 +59,14 @@ pub const KEY_LIGHT: u16 = 90;
 pub const KEY_BACKWARD: u16 = 193;
 pub const KEY_FORWARD: u16 = 194;
 pub const KEY_SPACE: u16 = 57;
+pub const KEY_LEFTCTRL: u16 = 29;
+pub const KEY_RIGHTCTRL: u16 = 97;
+pub const KEY_LEFTSHIFT: u16 = 42;
+pub const KEY_RIGHTSHIFT: u16 = 54;
+pub const KEY_LEFTALT: u16 = 56;
+pub const KEY_RIGHTALT: u16 = 100;
+pub const KEY_LEFTMETA: u16 = 125;
+pub const KEY_RIGHTMETA: u16 = 126;
 pub const PEN_ERASE: u16 = 331;
 pub const PEN_HIGHLIGHT: u16 = 332;
 pub const SLEEP_COVER: [u16; 2] = [59, 35];
@@ -153,6 +161,7 @@ pub enum ButtonCode {
     Erase,
     Highlight,
     Raw(u16),
+    KeyboardRaw { code: u16, ctrl: bool, shift: bool, alt: bool, meta: bool },
 }
 
 impl ButtonCode {
@@ -610,6 +619,12 @@ pub fn parse_device_events(rx: &Receiver<TaggedInputEvent>, ty: &Sender<DeviceEv
 
     let mut button_scheme = button_scheme;
 
+    // Modifier state tracking for dynamic keyboards
+    let mut ctrl_pressed = false;
+    let mut shift_pressed = false;
+    let mut alt_pressed = false;
+    let mut meta_pressed = false;
+
     while let Ok(tagged_evt) = rx.recv() {
         let evt = tagged_evt.event;
         if evt.kind == EV_ABS {
@@ -725,6 +740,38 @@ pub fn parse_device_events(rx: &Receiver<TaggedInputEvent>, ty: &Sender<DeviceEv
                     let should_mirror = CURRENT_DEVICE.should_mirror_axes(rotation);
                     mirror_x = should_mirror.0;
                     mirror_y = should_mirror.1;
+                }
+            } else if tagged_evt.is_dynamic {
+                // Track modifier state for dynamic devices
+                match evt.code {
+                    KEY_LEFTCTRL | KEY_RIGHTCTRL => {
+                        ctrl_pressed = evt.value != 0; // true for press (1) and repeat (2), false for release (0)
+                    }
+                    KEY_LEFTSHIFT | KEY_RIGHTSHIFT => {
+                        shift_pressed = evt.value != 0; // true for press (1) and repeat (2), false for release (0)
+                    }
+                    KEY_LEFTALT | KEY_RIGHTALT => {
+                        alt_pressed = evt.value != 0; // true for press (1) and repeat (2), false for release (0)
+                    }
+                    KEY_LEFTMETA | KEY_RIGHTMETA => {
+                        meta_pressed = evt.value != 0; // true for press (1) and repeat (2), false for release (0)
+                    }
+                    _ => {
+                        // For non-modifier keys, send as KeyboardRaw with current modifier state
+                        if let Some(button_status) = ButtonStatus::try_from_raw(evt.value) {
+                            ty.send(DeviceEvent::Button {
+                                time: seconds(evt.time),
+                                code: ButtonCode::KeyboardRaw {
+                                    code: evt.code,
+                                    ctrl: ctrl_pressed,
+                                    shift: shift_pressed,
+                                    alt: alt_pressed,
+                                    meta: meta_pressed,
+                                },
+                                status: button_status,
+                            }).unwrap();
+                        }
+                    }
                 }
             } else if evt.code != BTN_TOUCH {
                 if let Some(button_status) = ButtonStatus::try_from_raw(evt.value) {
