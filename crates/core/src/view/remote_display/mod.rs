@@ -371,6 +371,7 @@ impl View for RemoteDisplay {
                 let button = match code {
                     ButtonCode::Forward => "forward",
                     ButtonCode::Backward => "backward",
+                    ButtonCode::Raw(code) => &format!("raw{}", code),
                     _ => return false,
                 };
                 let status = match status {
