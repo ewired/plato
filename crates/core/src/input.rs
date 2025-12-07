@@ -714,34 +714,7 @@ pub fn parse_device_events(rx: &Receiver<TaggedInputEvent>, ty: &Sender<DeviceEv
                 packets.clear();
             }
         } else if evt.kind == EV_KEY {
-            if SLEEP_COVER.contains(&evt.code) {
-                if evt.value == VAL_PRESS {
-                    ty.send(DeviceEvent::CoverOn).ok();
-                } else if evt.value == VAL_RELEASE {
-                    ty.send(DeviceEvent::CoverOff).ok();
-                } else if evt.value == VAL_REPEAT {
-                    ty.send(DeviceEvent::CoverOn).ok();
-                }
-            } else if evt.code == KEY_BUTTON_SCHEME {
-                if evt.value == VAL_PRESS {
-                    button_scheme = ButtonScheme::Inverted;
-                } else {
-                    button_scheme = ButtonScheme::Natural;
-                }
-            } else if evt.code == KEY_ROTATE_DISPLAY {
-                let next_rotation = evt.value as i8;
-                if next_rotation != rotation {
-                    let delta = (rotation - next_rotation).abs();
-                    if delta % 2 == 1 {
-                        mem::swap(&mut tc.x, &mut tc.y);
-                        mem::swap(&mut dims.0, &mut dims.1);
-                    }
-                    rotation = next_rotation;
-                    let should_mirror = CURRENT_DEVICE.should_mirror_axes(rotation);
-                    mirror_x = should_mirror.0;
-                    mirror_y = should_mirror.1;
-                }
-            } else if tagged_evt.is_dynamic {
+            if tagged_evt.is_dynamic {
                 // Track modifier state for dynamic devices
                 match evt.code {
                     KEY_LEFTCTRL | KEY_RIGHTCTRL => {
@@ -772,6 +745,33 @@ pub fn parse_device_events(rx: &Receiver<TaggedInputEvent>, ty: &Sender<DeviceEv
                             }).unwrap();
                         }
                     }
+                }
+            } else if SLEEP_COVER.contains(&evt.code) {
+                if evt.value == VAL_PRESS {
+                    ty.send(DeviceEvent::CoverOn).ok();
+                } else if evt.value == VAL_RELEASE {
+                    ty.send(DeviceEvent::CoverOff).ok();
+                } else if evt.value == VAL_REPEAT {
+                    ty.send(DeviceEvent::CoverOn).ok();
+                }
+            } else if evt.code == KEY_BUTTON_SCHEME {
+                if evt.value == VAL_PRESS {
+                    button_scheme = ButtonScheme::Inverted;
+                } else {
+                    button_scheme = ButtonScheme::Natural;
+                }
+            } else if evt.code == KEY_ROTATE_DISPLAY {
+                let next_rotation = evt.value as i8;
+                if next_rotation != rotation {
+                    let delta = (rotation - next_rotation).abs();
+                    if delta % 2 == 1 {
+                        mem::swap(&mut tc.x, &mut tc.y);
+                        mem::swap(&mut dims.0, &mut dims.1);
+                    }
+                    rotation = next_rotation;
+                    let should_mirror = CURRENT_DEVICE.should_mirror_axes(rotation);
+                    mirror_x = should_mirror.0;
+                    mirror_y = should_mirror.1;
                 }
             } else if evt.code != BTN_TOUCH {
                 if let Some(button_status) = ButtonStatus::try_from_raw(evt.value) {
