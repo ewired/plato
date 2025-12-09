@@ -120,6 +120,22 @@ async function focusNextFocusableElement(direction) {
         block: 'center'
       });
 
+      // Return URL details if focused element is a link
+      if (nextElement.tagName === 'A' && nextElement.href) {
+        try {
+          const url = new URL(nextElement.href);
+          if (url.hash && url.origin === window.location.origin && url.pathname === window.location.pathname) {
+            return url.hash;
+          }
+          if (url.origin === window.location.origin && url.pathname !== window.location.pathname) {
+            return url.pathname;
+          }
+          return url.host;
+        } catch (e) {
+          return nextElement.href;
+        }
+      }
+
       return true;
     })()`
   });
@@ -867,6 +883,8 @@ async function onMessage(msg) {
             const focused = await focusNextFocusableElement('forward');
             if (!focused) {
               await sendNotice("no focusable elements found");
+            } else if (typeof focused === 'string') {
+              await sendNotice(`focused: ${focused}`);
             }
           } else {
             await scroll(0.5, 0.5, 0.5, 0);
@@ -878,6 +896,8 @@ async function onMessage(msg) {
             const focused = await focusNextFocusableElement('backward');
             if (!focused) {
               await sendNotice("no focusable elements found");
+            } else if (typeof focused === 'string') {
+              await sendNotice(`focused: ${focused}`);
             }
           } else {
             await scroll(0.5, 0.5, -0.5, 0);
